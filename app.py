@@ -3,7 +3,39 @@ from datetime import date
 
 st.set_page_config(page_title="GroupQuest", page_icon="🎯")
 
-Login-Status
+# Dummy-Daten für Challenges
+DUMMY_CHALLENGES = [
+    {
+        "title": "Tägliches Sport",
+        "desc": "Jeden Tag 30 Minuten Sport machen.",
+        "start": "01.05.2024",
+        "end": "31.05.2024",
+        "members": 5
+    },
+    {
+        "title": "Lesen",
+        "desc": "Täglich ein Kapitel lesen.",
+        "start": "15.04.2024",
+        "end": "15.05.2024",
+        "members": 3
+    }
+]
+
+# Dummy-Daten für Check-ins
+DUMMY_CHECKINS = [
+    {
+        "date": "05.05.2024",
+        "status": "Geschafft",
+        "note": "Super Training heute!"
+    },
+    {
+        "date": "04.05.2024",
+        "status": "Teilweise",
+        "note": "Nur 20 Minuten geschafft."
+    }
+]
+
+# Login-Status
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
