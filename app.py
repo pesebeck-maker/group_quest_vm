@@ -6,7 +6,7 @@ st.set_page_config(page_title="GroupQuest", page_icon="🎯")
 # Dummy-Daten für Challenges
 DUMMY_CHALLENGES = [
     {
-        "title": "Tägliches Sport",
+        "title": "Täglicher Sport",
         "desc": "Jeden Tag 30 Minuten Sport machen.",
         "start": "01.05.2024",
         "end": "31.05.2024",
