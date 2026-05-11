@@ -1,8 +1,3 @@
-"""
-GroupQuest – Datenbank-Modul
-Alle SQLite-Funktionen für Sprint 3 (User) und Sprint 4 (Challenges, Check-ins).
-"""
-
 import sqlite3
 import hashlib
 
@@ -17,8 +12,13 @@ def get_connection():
 
 
 def setup_database():
-    """Initialisiert alle Tabellen."""
+    """
+    [Sprint 3] Initialisiert alle Tabellen.
+    Wird beim App-Start aufgerufen. Tabellen werden nur erstellt,
+    wenn sie noch nicht existieren.
+    """
     with get_connection() as conn:
+        # Sprint 3: Tabelle für User
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,6 +27,7 @@ def setup_database():
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Sprint 4: Tabelle für Challenges
         conn.execute("""
             CREATE TABLE IF NOT EXISTS challenges (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,6 +39,7 @@ def setup_database():
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Sprint 4: Tabelle für Mitgliedschaften
         conn.execute("""
             CREATE TABLE IF NOT EXISTS members (
                 user_id INTEGER,
@@ -45,6 +47,7 @@ def setup_database():
                 PRIMARY KEY (user_id, challenge_id)
             )
         """)
+        # Sprint 4: Tabelle für Check-ins
         conn.execute("""
             CREATE TABLE IF NOT EXISTS checkins (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,10 +66,16 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-# === Sprint 3: User =========================================================
+# ============================================================================
+# SPRINT 3: Nutzerverwaltung
+# ============================================================================
 
 def create_user(username, password):
-    """CREATE: Legt einen neuen User an. Gibt die neue ID zurück, sonst None."""
+    """
+    [Sprint 3 – Backend zu US-33 Registrierung]
+    CREATE: Legt einen neuen User an.
+    Gibt die neue ID zurück oder None, wenn der Username schon existiert.
+    """
     try:
         with get_connection() as conn:
             cur = conn.cursor()
@@ -82,7 +91,11 @@ def create_user(username, password):
 
 
 def login_user(username, password):
-    """READ: Prüft Login-Daten. Gibt User-Dict zurück oder None."""
+    """
+    [Sprint 3 – Backend zu US-32 Login]
+    READ: Prüft Login-Daten gegen die DB.
+    Gibt User-Dict zurück oder None bei falschen Daten.
+    """
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -93,19 +106,16 @@ def login_user(username, password):
         return dict(row) if row else None
 
 
-def get_user(user_id):
-    """READ: Holt einen User per ID."""
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        row = cur.fetchone()
-        return dict(row) if row else None
-
-
-# === Sprint 4: Challenges ===================================================
+# ============================================================================
+# SPRINT 4: Challenges
+# ============================================================================
 
 def create_challenge(title, description, start_date, end_date, creator_id):
-    """CREATE: Legt eine neue Challenge an. Ersteller:in wird automatisch Mitglied."""
+    """
+    [Sprint 4 – Backend zu US-14 Challenge erstellen]
+    CREATE: Legt eine neue Challenge an.
+    Ersteller:in wird automatisch als Mitglied eingetragen.
+    """
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -124,7 +134,10 @@ def create_challenge(title, description, start_date, end_date, creator_id):
 
 
 def read_challenges():
-    """READ: Gibt alle Challenges als Liste zurück (neueste zuerst)."""
+    """
+    [Sprint 4 – Backend zu US-16 Challenges auflisten]
+    READ: Gibt alle Challenges als Liste zurück (neueste zuerst).
+    """
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute("SELECT * FROM challenges ORDER BY id DESC")
@@ -132,7 +145,10 @@ def read_challenges():
 
 
 def count_members(challenge_id):
-    """READ: Zählt Mitglieder einer Challenge."""
+    """
+    [Sprint 4 – Backend zu US-16]
+    READ: Zählt Mitglieder einer Challenge für die Anzeige in der Liste.
+    """
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -142,10 +158,15 @@ def count_members(challenge_id):
         return cur.fetchone()["n"]
 
 
-# === Sprint 4: Beitreten / Verlassen ========================================
+# ============================================================================
+# SPRINT 4: Beitreten / Verlassen
+# ============================================================================
 
 def is_member(user_id, challenge_id):
-    """READ: Prüft, ob ein User Mitglied einer Challenge ist."""
+    """
+    [Sprint 4 – Backend zu US-17 Status-Anzeige]
+    READ: Prüft, ob ein User Mitglied einer Challenge ist.
+    """
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -156,7 +177,10 @@ def is_member(user_id, challenge_id):
 
 
 def join_challenge(user_id, challenge_id):
-    """CREATE: User tritt einer Challenge bei."""
+    """
+    [Sprint 4 – Backend zu US-17 Beitreten]
+    CREATE: User tritt einer Challenge bei.
+    """
     try:
         with get_connection() as conn:
             conn.execute(
@@ -169,7 +193,10 @@ def join_challenge(user_id, challenge_id):
 
 
 def leave_challenge(user_id, challenge_id):
-    """DELETE: User verlässt eine Challenge."""
+    """
+    [Sprint 4 – Backend zu US-17 Verlassen]
+    DELETE: User verlässt eine Challenge.
+    """
     with get_connection() as conn:
         conn.execute(
             "DELETE FROM members WHERE user_id = ? AND challenge_id = ?",
@@ -178,10 +205,15 @@ def leave_challenge(user_id, challenge_id):
         conn.commit()
 
 
-# === Sprint 4: Check-ins ====================================================
+# ============================================================================
+# SPRINT 4: Check-ins
+# ============================================================================
 
 def create_checkin(user_id, challenge_id, status, note):
-    """CREATE: Speichert einen Check-in."""
+    """
+    [Sprint 4 – Backend zu US-18 Check-in dokumentieren]
+    CREATE: Speichert einen Check-in.
+    """
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -194,7 +226,11 @@ def create_checkin(user_id, challenge_id, status, note):
 
 
 def read_checkins(user_id, challenge_id):
-    """READ: Holt alle Check-ins eines Users in einer Challenge."""
+    """
+    [Sprint 4 – Backend zu US-18 Check-in-Historie]
+    READ: Holt alle Check-ins eines Users in einer Challenge,
+    sortiert nach Zeit (neueste zuerst).
+    """
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute(
