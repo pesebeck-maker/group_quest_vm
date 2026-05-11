@@ -1,0 +1,205 @@
+"""
+GroupQuest – Datenbank-Modul
+Alle SQLite-Funktionen für Sprint 3 (User) und Sprint 4 (Challenges, Check-ins).
+"""
+
+import sqlite3
+import hashlib
+
+DB_NAME = "groupquest.db"
+
+
+def get_connection():
+    """Erstellt eine Verbindung zur Datenbank und gibt sie zurück."""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def setup_database():
+    """Initialisiert alle Tabellen."""
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS challenges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                creator_id INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS members (
+                user_id INTEGER,
+                challenge_id INTEGER,
+                PRIMARY KEY (user_id, challenge_id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS checkins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                challenge_id INTEGER,
+                status TEXT,
+                note TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+
+
+def hash_password(password):
+    """Hilfsfunktion: Hasht ein Passwort mit SHA-256."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+# === Sprint 3: User =========================================================
+
+def create_user(username, password):
+    """CREATE: Legt einen neuen User an. Gibt die neue ID zurück, sonst None."""
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO users (username, password) VALUES (?, ?)",
+                (username, hash_password(password))
+            )
+            conn.commit()
+            return cur.lastrowid
+    except sqlite3.IntegrityError:
+        print(f"Fehler: Username {username} existiert bereits.")
+        return None
+
+
+def login_user(username, password):
+    """READ: Prüft Login-Daten. Gibt User-Dict zurück oder None."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM users WHERE username = ? AND password = ?",
+            (username, hash_password(password))
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def get_user(user_id):
+    """READ: Holt einen User per ID."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+# === Sprint 4: Challenges ===================================================
+
+def create_challenge(title, description, start_date, end_date, creator_id):
+    """CREATE: Legt eine neue Challenge an. Ersteller:in wird automatisch Mitglied."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO challenges (title, description, start_date, end_date, creator_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (title, description, start_date, end_date, creator_id)
+        )
+        new_id = cur.lastrowid
+        # Ersteller automatisch in members eintragen
+        cur.execute(
+            "INSERT INTO members (user_id, challenge_id) VALUES (?, ?)",
+            (creator_id, new_id)
+        )
+        conn.commit()
+        return new_id
+
+
+def read_challenges():
+    """READ: Gibt alle Challenges als Liste zurück (neueste zuerst)."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM challenges ORDER BY id DESC")
+        return [dict(row) for row in cur.fetchall()]
+
+
+def count_members(challenge_id):
+    """READ: Zählt Mitglieder einer Challenge."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM members WHERE challenge_id = ?",
+            (challenge_id,)
+        )
+        return cur.fetchone()["n"]
+
+
+# === Sprint 4: Beitreten / Verlassen ========================================
+
+def is_member(user_id, challenge_id):
+    """READ: Prüft, ob ein User Mitglied einer Challenge ist."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM members WHERE user_id = ? AND challenge_id = ?",
+            (user_id, challenge_id)
+        )
+        return cur.fetchone() is not None
+
+
+def join_challenge(user_id, challenge_id):
+    """CREATE: User tritt einer Challenge bei."""
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO members (user_id, challenge_id) VALUES (?, ?)",
+                (user_id, challenge_id)
+            )
+            conn.commit()
+    except sqlite3.IntegrityError:
+        print("Bereits Mitglied.")
+
+
+def leave_challenge(user_id, challenge_id):
+    """DELETE: User verlässt eine Challenge."""
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM members WHERE user_id = ? AND challenge_id = ?",
+            (user_id, challenge_id)
+        )
+        conn.commit()
+
+
+# === Sprint 4: Check-ins ====================================================
+
+def create_checkin(user_id, challenge_id, status, note):
+    """CREATE: Speichert einen Check-in."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO checkins (user_id, challenge_id, status, note) "
+            "VALUES (?, ?, ?, ?)",
+            (user_id, challenge_id, status, note)
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def read_checkins(user_id, challenge_id):
+    """READ: Holt alle Check-ins eines Users in einer Challenge."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM checkins WHERE user_id = ? AND challenge_id = ? "
+            "ORDER BY id DESC",
+            (user_id, challenge_id)
+        )
+        return [dict(row) for row in cur.fetchall()]
