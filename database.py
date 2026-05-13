@@ -227,7 +227,7 @@ def create_checkin(user_id, challenge_id, status, note):
 
 def read_checkins(user_id, challenge_id):
     """
-    [Sprint 4 – Backend zu US-18 Check-in-Historie]
+    [Sprint 4 – Backend zu US-20 Eigene Check-ins ansehen]
     READ: Holt alle Check-ins eines Users in einer Challenge,
     sortiert nach Zeit (neueste zuerst).
     """
@@ -239,3 +239,88 @@ def read_checkins(user_id, challenge_id):
             (user_id, challenge_id)
         )
         return [dict(row) for row in cur.fetchall()]
+
+
+# ============================================================================
+# SPRINT 5: Profil & Punkte & Leaderboard
+# ============================================================================
+
+# Sprint 5: Punkte-Vergabe je Check-in-Status (US-22)
+POINTS_PER_STATUS = {
+    "Geschafft": 10,
+    "Teilweise": 5,
+    "Verpasst": 0,
+}
+
+
+def count_user_challenges(user_id):
+    """
+    [Sprint 5 – Backend zu US-13 Profil ansehen]
+    READ: Zählt, in wie vielen Challenges der User Mitglied ist.
+    """
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM members WHERE user_id = ?",
+            (user_id,)
+        )
+        return cur.fetchone()["n"]
+
+
+def get_user_points(user_id):
+    """
+    [Sprint 5 – Backend zu US-22 Punkte für Check-ins]
+    READ: Berechnet die Gesamtpunkte eines Users über alle Challenges hinweg.
+    Punkte werden aus den Check-in-Status abgeleitet:
+    Geschafft = 10, Teilweise = 5, Verpasst = 0.
+    """
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT status FROM checkins WHERE user_id = ?",
+            (user_id,)
+        )
+        total = 0
+        for row in cur.fetchall():
+            total += POINTS_PER_STATUS.get(row["status"], 0)
+        return total
+
+
+def get_challenge_leaderboard(challenge_id):
+    """
+    [Sprint 5 – Backend zu US-27 Challenge-Leaderboard]
+    READ: Liefert ein Ranking aller Teilnehmer:innen einer Challenge,
+    sortiert nach Punkten (absteigend).
+    Gibt eine Liste von Dicts mit username und points zurück.
+    """
+    with get_connection() as conn:
+        cur = conn.cursor()
+        # Hole alle Mitglieder der Challenge mit Username
+        cur.execute("""
+            SELECT u.id, u.username
+            FROM users u
+            JOIN members m ON m.user_id = u.id
+            WHERE m.challenge_id = ?
+        """, (challenge_id,))
+        members = cur.fetchall()
+
+        # Punkte pro Mitglied innerhalb dieser Challenge berechnen
+        leaderboard = []
+        for m in members:
+            cur.execute(
+                "SELECT status FROM checkins WHERE user_id = ? AND challenge_id = ?",
+                (m["id"], challenge_id)
+            )
+            points = sum(
+                POINTS_PER_STATUS.get(row["status"], 0)
+                for row in cur.fetchall()
+            )
+            leaderboard.append({
+                "user_id": m["id"],
+                "username": m["username"],
+                "points": points,
+            })
+
+        # Sortieren nach Punkten (absteigend)
+        leaderboard.sort(key=lambda x: x["points"], reverse=True)
+        return leaderboard

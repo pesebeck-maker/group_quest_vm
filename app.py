@@ -2,7 +2,7 @@
 GroupQuest – Streamlit-App
 ==========================
 
-Diese App wurde in 4 Sprints entwickelt:
+Diese App wurde in 5 Sprints entwickelt:
 
   Sprint 1 (Click-Dummy, ohne Backend):
     - US-33 Registrierung
@@ -17,14 +17,14 @@ Diese App wurde in 4 Sprints entwickelt:
 
   Sprint 3 (Backend-Integration für Nutzerverwaltung):
     - Backend zu US-33 und US-32 (siehe database.py)
-    - Login prüft jetzt echte Credentials
-    - Registrierung legt User in der DB an
 
   Sprint 4 (Backend-Integration für Inhalte):
-    - Backend zu US-14, US-16, US-17 und US-18
-    - Challenges, Mitgliedschaften und Check-ins werden in der DB gespeichert
-    - Toast-Bestätigungen aus dem Click-Dummy wurden durch echte
-      DB-Operationen ersetzt
+    - Backend zu US-14, US-16, US-17, US-18, US-20
+
+  Sprint 5 (Gamification & Profil):
+    - US-13 Profil ansehen
+    - US-22 Punkte für Check-ins
+    - US-27 Challenge-Leaderboard
 """
 
 import streamlit as st
@@ -67,6 +67,9 @@ def login_view():
             user = db.login_user(username, password)
             if user:
                 st.session_state.user = user
+                # Easter Egg 🥚
+                if username.lower() in ("konami", "developer", "admin42"):
+                    st.balloons()
                 st.rerun()
             else:
                 st.error("Username oder Passwort falsch.")
@@ -85,6 +88,36 @@ def login_view():
                     st.success("Account erstellt! Du kannst dich jetzt einloggen.")
                 else:
                     st.error("Username ist bereits vergeben.")
+
+
+# ============================================================================
+# Sprint 5: Profil ansehen (US-13)
+# ============================================================================
+
+def profile_view():
+    """
+    US-13 Profil ansehen.
+    Zeigt Username, Mitglied-seit-Datum, Anzahl Challenges und Punktestand.
+    """
+    st.header("Mein Profil")
+    user = st.session_state.user
+
+    # [Sprint 5] Daten aus der DB aggregieren
+    challenge_count = db.count_user_challenges(user["id"])
+    total_points = db.get_user_points(user["id"])
+
+    # Anzeige
+    st.write(f"**Username:** {user['username']}")
+    st.write(f"**Mitglied seit:** {user['created_at']}")
+
+    st.divider()
+
+    # Zwei Metric-Boxen nebeneinander
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Meine Challenges", challenge_count)
+    with col2:
+        st.metric("Punkte gesamt", total_points)
 
 
 # ============================================================================
@@ -129,14 +162,13 @@ def create_view():
 # Sprint 1: Challenges auflisten (UI)
 # Sprint 2: Beitreten / Verlassen (UI)
 # Sprint 4: Backend-Integration (Liste + Mitgliedschaft aus DB)
+# Sprint 5: Leaderboard pro Challenge (US-27)
 # ============================================================================
 
 def list_view():
     """
-    US-16 Challenges auflisten + US-17 Beitreten/Verlassen.
-    Im Click-Dummy waren die Challenges hardcodiert und Beitreten
-    löste nur einen Toast aus. Ab Sprint 4 kommen die Daten aus der
-    DB und Mitgliedschaften werden wirklich gespeichert.
+    US-16 Challenges auflisten + US-17 Beitreten/Verlassen + US-27 Leaderboard.
+    Ab Sprint 5 kann pro Challenge das Leaderboard aufgeklappt werden.
     """
     st.header("Alle Challenges")
 
@@ -159,7 +191,7 @@ def list_view():
                 f"👥 {members} Teilnehmende"
             )
 
-            # [Sprint 4] Status-Anzeige + Toggle-Button (schließt Lücke aus Sprint 2)
+            # [Sprint 4] Status-Anzeige + Toggle-Button
             member = db.is_member(user_id, c["id"])
 
             col1, col2 = st.columns(2)
@@ -178,19 +210,32 @@ def list_view():
                 else:
                     st.caption("Noch nicht beigetreten")
 
+            # [Sprint 5] Leaderboard für diese Challenge (US-27)
+            with st.expander("🏆 Leaderboard anzeigen"):
+                leaderboard = db.get_challenge_leaderboard(c["id"])
+                if not leaderboard:
+                    st.caption("Noch keine Teilnehmenden.")
+                else:
+                    for rank, entry in enumerate(leaderboard, start=1):
+                        # Medaillen für die ersten drei Plätze
+                        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(rank, f"{rank}.")
+                        is_me = entry["user_id"] == user_id
+                        line = f"{medal}  **{entry['username']}** – {entry['points']} Punkte"
+                        if is_me:
+                            line += "  ← *Du*"
+                        st.write(line)
+
 
 # ============================================================================
 # Sprint 2: Check-in dokumentieren (UI)
 # Sprint 4: Backend-Integration (speichern + lesen aus DB)
+# Sprint 5: Punkte-Feedback (US-22)
 # ============================================================================
 
 def checkin_view():
     """
-    US-18 Check-in dokumentieren.
-    Im Click-Dummy wurden Check-ins nur als Toast bestätigt und
-    die letzten Check-ins waren hardcodiert. Ab Sprint 4 werden
-    Check-ins in der DB gespeichert und die Historie wird aus
-    der DB gelesen.
+    US-18 Check-in dokumentieren + US-20 Eigene Check-ins ansehen.
+    Ab Sprint 5 wird beim Speichern auch die Punktezahl rückgemeldet.
     """
     st.header("Check-in")
     user_id = st.session_state.user["id"]
@@ -217,10 +262,16 @@ def checkin_view():
     if st.button("Check-in speichern", type="primary", use_container_width=True):
         # [Sprint 4] Check-in wird in die DB gespeichert
         db.create_checkin(user_id, cid, status, note)
-        st.success("Check-in gespeichert! 🎯")
+        # [Sprint 5] Punkte-Feedback (US-22)
+        points = db.POINTS_PER_STATUS.get(status, 0)
+        if points > 0:
+            st.success(f"Check-in gespeichert! 🎯 +{points} Punkte")
+        else:
+            st.success("Check-in gespeichert! Morgen wird besser. 💪")
         st.rerun()
 
     st.divider()
+    # US-20 Eigene Check-ins ansehen
     st.subheader("Letzte Check-ins")
     # [Sprint 4] Historie kommt aus der DB statt aus Dummy-Daten
     checkins = db.read_checkins(user_id, cid)
@@ -229,26 +280,34 @@ def checkin_view():
     else:
         for ci in checkins[:10]:
             with st.container(border=True):
-                st.write(f"**{ci['created_at']}** – {ci['status']}")
+                # [Sprint 5] Punkte pro Check-in anzeigen (US-22)
+                pts = db.POINTS_PER_STATUS.get(ci["status"], 0)
+                st.write(
+                    f"**{ci['created_at']}** – {ci['status']}  ·  *+{pts} Punkte*"
+                )
                 if ci["note"]:
                     st.caption(ci["note"])
 
 
 # ============================================================================
 # Sprint 2: Multi-Page-Navigation
+# Sprint 5: Profil-Seite ergänzt (US-13)
 # ============================================================================
 
 def app_view():
     """
     US-29 Multi-Page-Navigation.
-    Sidebar mit Auswahl zwischen den drei Hauptseiten und Logout-Button.
+    Sidebar mit Auswahl zwischen den vier Hauptseiten und Logout-Button.
     """
     with st.sidebar:
         st.markdown(f"### 👋 Hi, {st.session_state.user['username']}!")
+        # [Sprint 5] Punktestand in der Sidebar (US-22)
+        points = db.get_user_points(st.session_state.user["id"])
+        st.caption(f"⭐ {points} Punkte")
         st.divider()
         page = st.radio(
             "Navigation",
-            ["🌍 Challenges", "➕ Erstellen", "✍️ Check-in"],
+            ["🌍 Challenges", "➕ Erstellen", "✍️ Check-in", "👤 Profil"],
             label_visibility="collapsed"
         )
         st.divider()
@@ -260,8 +319,10 @@ def app_view():
         list_view()
     elif page == "➕ Erstellen":
         create_view()
-    else:
+    elif page == "✍️ Check-in":
         checkin_view()
+    else:
+        profile_view()
 
 
 # ============================================================================
