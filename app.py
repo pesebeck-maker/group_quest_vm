@@ -73,6 +73,10 @@ def login_view():
                 st.rerun()
             else:
                 st.error("Username oder Passwort falsch.")
+        if st.button("Eingaben löschen", key="clear_login", use_container_width=True):
+            st.session_state.li_u = ""
+            st.session_state.li_p = ""
+            st.rerun()
 
     # --- US-33 Registrierung (Sprint 1 UI, Sprint 3 Backend) ------------------
     with tab2:
@@ -88,6 +92,10 @@ def login_view():
                     st.success("Account erstellt! Du kannst dich jetzt einloggen.")
                 else:
                     st.error("Username ist bereits vergeben.")
+        if st.button("Eingaben löschen", key="clear_register", use_container_width=True):
+            st.session_state.reg_u = ""
+            st.session_state.reg_p = ""
+            st.rerun()
 
 
 # ============================================================================
